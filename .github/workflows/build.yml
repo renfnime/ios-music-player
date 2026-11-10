@@ -1,0 +1,58 @@
+name: Test & Build iOS IPA
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  test-and-build:
+    name: Test on Simulator & Package IPA
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Langkah 1: Test compile di iOS Simulator (iPhone 15)
+      - name: Test Build on iOS Simulator
+        run: |
+          if [ -d "app ios" ]; then
+            cd "app ios"
+          fi
+          xcodebuild clean build \
+            -project MusicPlayer.xcodeproj \
+            -scheme MusicPlayer \
+            -destination "platform=iOS Simulator,name=iPhone 15" \
+            CODE_SIGNING_ALLOWED=NO
+
+      # Langkah 2: Build & archive untuk iPhone fisik
+      - name: Build & Archive for Device
+        run: |
+          if [ -d "app ios" ]; then
+            cd "app ios"
+          fi
+          xcodebuild archive \
+            -project MusicPlayer.xcodeproj \
+            -scheme MusicPlayer \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath build/MusicPlayer.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      # Langkah 3: Bungkus menjadi file .IPA
+      - name: Package Payload into .IPA
+        run: |
+          if [ -d "app ios" ]; then
+            cd "app ios"
+          fi
+          mkdir -p build/Payload
+          cp -R build/MusicPlayer.xcarchive/Products/Applications/MusicPlayer.app build/Payload/
+          cd build
+          zip -r -y MusicPlayer.ipa Payload
+
+      # Langkah 4: Simpan file .IPA untuk diunduh
+      - name: Upload IPA Artifact
+        uses: actions/upload-
