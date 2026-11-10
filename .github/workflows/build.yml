@@ -55,4 +55,8 @@ jobs:
 
       # Langkah 4: Simpan file .IPA untuk diunduh
       - name: Upload IPA Artifact
-        uses: actions/upload-
+        uses: actions/upload-artifact@v4
+        with:
+          name: MusicPlayer-iOS-IPA
+          path: "**/build/MusicPlayer.ipa"
+          retention-days: 14
