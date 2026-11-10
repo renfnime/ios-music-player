@@ -36,6 +36,7 @@
 		15F746896FCA09BEB10DA5F2 /* QueueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ABC238C1C4148BF755A621B /* QueueView.swift */; };
 		517468E7BDF0BA5AFA969E1E /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDB4C507D0F85A584E4F6865 /* SearchView.swift */; };
 		C76CF81ABFC3C37D56B7AAA1 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81B77F5B270FBFC9720C6C88 /* SettingsView.swift */; };
+		82BCE920153B48BC08263A21 /* YouTubePlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD2889CF9B4A42EEDE954E5F /* YouTubePlayerView.swift */; };
 		99812033B8BD7CDC0C7E876A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CC3340C45202B29152467289 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -69,6 +70,7 @@
 		9ABC238C1C4148BF755A621B /* QueueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueView.swift; sourceTree = "<group>"; };
 		EDB4C507D0F85A584E4F6865 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
 		81B77F5B270FBFC9720C6C88 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		DD2889CF9B4A42EEDE954E5F /* YouTubePlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubePlayerView.swift; sourceTree = "<group>"; };
 		CC3340C45202B29152467289 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		0096DDB5D5C93DB7732319BF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		7BCCADA3021C07D12E775CB5 /* MusicPlayer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MusicPlayer.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -175,6 +177,7 @@
 				9ABC238C1C4148BF755A621B /* QueueView.swift */,
 				EDB4C507D0F85A584E4F6865 /* SearchView.swift */,
 				81B77F5B270FBFC9720C6C88 /* SettingsView.swift */,
+				DD2889CF9B4A42EEDE954E5F /* YouTubePlayerView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -277,6 +280,7 @@
 				15F746896FCA09BEB10DA5F2 /* QueueView.swift in Sources */,
 				517468E7BDF0BA5AFA969E1E /* SearchView.swift in Sources */,
 				C76CF81ABFC3C37D56B7AAA1 /* SettingsView.swift in Sources */,
+				82BCE920153B48BC08263A21 /* YouTubePlayerView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

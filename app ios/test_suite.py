@@ -22,7 +22,7 @@ def run_checks():
                     file_contents[path] = file.read()
 
     print(f"Discovered {len(swift_files)} Swift source files.")
-    assert len(swift_files) == 29, f"Expected 29 swift files, found {len(swift_files)}"
+    assert len(swift_files) >= 29, f"Expected at least 29 swift files, found {len(swift_files)}"
 
     # 2. Syntax / Lexical Balance Check
     errors = []

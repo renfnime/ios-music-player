@@ -157,42 +157,49 @@ struct FullPlayerView: View {
     private var artworkSection: some View {
         ZStack {
             if let song = playerVM.currentSong {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color(hex: song.source.color).opacity(0.5), AppTheme.cardColor],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
+                if let videoId = playerVM.youtubeVideoId {
+                    YouTubePlayerView(videoId: videoId)
+                        .frame(width: 320, height: 220)
+                        .cornerRadius(16)
+                        .shadow(color: Color.black.opacity(0.5), radius: 25, x: 0, y: 10)
+                } else {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color(hex: song.source.color).opacity(0.5), AppTheme.cardColor],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
                             )
-                        )
-                        .frame(width: 300, height: 300)
+                            .frame(width: 300, height: 300)
 
-                    if let artworkURL = song.artworkURL, let url = URL(string: artworkURL) {
-                        AsyncImage(url: url) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(width: 300, height: 300)
-                                    .clipShape(RoundedRectangle(cornerRadius: 20))
-                            case .failure(_):
-                                albumPlaceholder
-                            case .empty:
-                                ProgressView()
-                                    .frame(width: 300, height: 300)
-                            @unknown default:
-                                albumPlaceholder
+                        if let artworkURL = song.artworkURL, let url = URL(string: artworkURL) {
+                            AsyncImage(url: url) { phase in
+                                switch phase {
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(width: 300, height: 300)
+                                        .clipShape(RoundedRectangle(cornerRadius: 20))
+                                case .failure(_):
+                                    albumPlaceholder
+                                case .empty:
+                                    ProgressView()
+                                        .frame(width: 300, height: 300)
+                                @unknown default:
+                                    albumPlaceholder
+                                }
                             }
+                        } else {
+                            albumPlaceholder
                         }
-                    } else {
-                        albumPlaceholder
                     }
+                    .shadow(color: Color.black.opacity(0.5), radius: 30, x: 0, y: 15)
+                    .scaleEffect(playerVM.isPlaying ? 1.0 : 0.9)
+                    .animation(.easeInOut(duration: 0.5), value: playerVM.isPlaying)
                 }
-                .shadow(color: Color.black.opacity(0.5), radius: 30, x: 0, y: 15)
-                .scaleEffect(playerVM.isPlaying ? 1.0 : 0.9)
-                .animation(.easeInOut(duration: 0.5), value: playerVM.isPlaying)
             }
         }
     }

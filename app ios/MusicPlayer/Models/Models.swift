@@ -29,6 +29,13 @@ struct Song: Identifiable, Codable, Equatable, Hashable {
         let seconds = Int(duration) % 60
         return String(format: "%d:%02d", minutes, seconds)
     }
+
+    var youtubeVideoId: String? {
+        if source == .youtube {
+            return id.replacingOccurrences(of: "youtube_", with: "")
+        }
+        return nil
+    }
 }
 
 // MARK: - Music Source

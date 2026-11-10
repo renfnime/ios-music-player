@@ -19,6 +19,7 @@ class PlayerViewModel: ObservableObject {
     @Published var lyrics: String?
     @Published var isLoadingLyrics = false
     @Published var showLyrics = false
+    @Published var youtubeVideoId: String?
 
     // Equalizer
     @Published var currentEQPreset: EqualizerPreset = .flat
@@ -93,11 +94,45 @@ class PlayerViewModel: ObservableObject {
         currentSong = song
         playHistory.append(song)
 
-        if let localPath = song.localFilePath, song.isDownloaded {
-            audioPlayer.playLocalFile(path: localPath)
-        } else if let streamURL = song.streamURL ?? song.previewURL,
-                  let url = URL(string: streamURL) {
-            audioPlayer.play(url: url)
+        if song.source == .youtube {
+            self.youtubeVideoId = song.youtubeVideoId
+            self.isPlaying = true
+            Task {
+                let query = "\(song.artist) \(song.title)"
+                if let deezerTracks = try? await DeezerService.shared.search(query: query),
+                   let match = deezerTracks.first,
+                   let stream = match.previewURL ?? match.streamURL,
+                   let url = URL(string: stream) {
+                    await MainActor.run {
+                        if self.currentSong?.id == song.id {
+                            self.audioPlayer.play(url: url)
+                        }
+                    }
+                }
+            }
+        } else {
+            self.youtubeVideoId = nil
+            if let localPath = song.localFilePath, song.isDownloaded {
+                audioPlayer.playLocalFile(path: localPath)
+            } else if let streamURL = song.streamURL ?? song.previewURL,
+                      let url = URL(string: streamURL),
+                      !streamURL.contains("last.fm") && !streamURL.contains("youtube.com") {
+                audioPlayer.play(url: url)
+            } else {
+                Task {
+                    let query = "\(song.artist) \(song.title)"
+                    if let deezerTracks = try? await DeezerService.shared.search(query: query),
+                       let match = deezerTracks.first,
+                       let stream = match.previewURL ?? match.streamURL,
+                       let url = URL(string: stream) {
+                        await MainActor.run {
+                            if self.currentSong?.id == song.id {
+                                self.audioPlayer.play(url: url)
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         updateNowPlayingInfo()

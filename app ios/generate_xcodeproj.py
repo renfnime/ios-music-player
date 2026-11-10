@@ -48,6 +48,7 @@ SOURCE_FILES = [
     ("Views/QueueView.swift", "Views"),
     ("Views/SearchView.swift", "Views"),
     ("Views/SettingsView.swift", "Views"),
+    ("Views/YouTubePlayerView.swift", "Views"),
 ]
 
 RESOURCE_FILES = [
