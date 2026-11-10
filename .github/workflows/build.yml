@@ -8,13 +8,13 @@ on:
 jobs:
   test-and-build:
     name: Test on Simulator & Package IPA
-    runs-on: macos-14
+    runs-on: macos-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Langkah 1: Test compile di iOS Simulator (iPhone 15)
+      # Langkah 1: Test compile di iOS Simulator
       - name: Test Build on iOS Simulator
         run: |
           if [ -d "app ios" ]; then
@@ -23,7 +23,7 @@ jobs:
           xcodebuild clean build \
             -project MusicPlayer.xcodeproj \
             -scheme MusicPlayer \
-            -destination "platform=iOS Simulator,name=iPhone 15" \
+            -destination "generic/platform=iOS Simulator" \
             CODE_SIGNING_ALLOWED=NO
 
       # Langkah 2: Build & archive untuk iPhone fisik
