@@ -10,48 +10,64 @@ struct FullPlayerView: View {
     @State private var showQueue = false
 
     var body: some View {
-        ZStack {
-            // Background
-            backgroundGradient
+        GeometryReader { geometry in
+            let artworkSize = max(200, min(300, min(geometry.size.width - 48, geometry.size.height * 0.36)))
 
-            VStack(spacing: 0) {
-                // Drag Handle & Top Bar
-                topBar
+            ZStack {
+                // Background
+                backgroundGradient(screenSize: geometry.size)
 
-                Spacer()
+                VStack(spacing: 0) {
+                    // Drag Handle & Top Bar
+                    topBar(topInset: geometry.safeAreaInsets.top)
+                        .frame(maxWidth: .infinity)
 
-                if playerVM.showLyrics {
-                    lyricsView
-                } else {
-                    // Artwork
-                    artworkSection
+                    Spacer(minLength: 8)
+
+                    if playerVM.showLyrics {
+                        lyricsView(maxHeight: artworkSize)
+                            .frame(maxWidth: .infinity)
+                    } else {
+                        // Artwork
+                        artworkSection(size: artworkSize)
+                            .frame(maxWidth: .infinity)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    // Song Info
+                    songInfoSection
+                        .frame(maxWidth: .infinity)
+
+                    // Progress Bar
+                    progressSection
+                        .frame(maxWidth: .infinity)
+
+                    // Controls
+                    controlsSection
+                        .frame(maxWidth: .infinity)
+
+                    // Volume
+                    volumeSection
+                        .frame(maxWidth: .infinity)
+
+                    // Bottom Actions
+                    bottomActions
+                        .frame(maxWidth: .infinity)
+
+                    Spacer().frame(height: max(20, geometry.safeAreaInsets.bottom))
                 }
-
-                Spacer()
-
-                // Song Info
-                songInfoSection
-
-                // Progress Bar
-                progressSection
-
-                // Controls
-                controlsSection
-
-                // Volume
-                volumeSection
-
-                // Bottom Actions
-                bottomActions
-
-                Spacer().frame(height: 20)
+                .padding(.horizontal, 24)
+                .frame(width: geometry.size.width, height: geometry.size.height)
             }
-            .padding(.horizontal, 24)
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .clipped()
         }
         .gesture(
             DragGesture()
                 .onChanged { value in
-                    if value.translation.height > 0 {
+                    // Only respond to vertical downward drags
+                    if value.translation.height > 0 && abs(value.translation.height) > abs(value.translation.width) {
                         dragOffset = value.translation.height
                     }
                 }
@@ -73,8 +89,10 @@ struct FullPlayerView: View {
     }
 
     // MARK: - Background
-    private var backgroundGradient: some View {
+    private func backgroundGradient(screenSize: CGSize) -> some View {
         ZStack {
+            AppTheme.backgroundColor
+
             if let song = playerVM.currentSong,
                let artworkURL = song.artworkURL,
                let url = URL(string: artworkURL) {
@@ -83,7 +101,8 @@ struct FullPlayerView: View {
                         image
                             .resizable()
                             .aspectRatio(contentMode: .fill)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .frame(width: screenSize.width, height: screenSize.height)
+                            .clipped()
                             .blur(radius: 60)
                             .overlay(Color.black.opacity(0.6))
                     }
@@ -91,16 +110,18 @@ struct FullPlayerView: View {
             }
             AppTheme.backgroundColor.opacity(0.7)
         }
+        .frame(width: screenSize.width, height: screenSize.height)
+        .clipped()
         .ignoresSafeArea()
     }
 
     // MARK: - Top Bar
-    private var topBar: some View {
+    private func topBar(topInset: CGFloat) -> some View {
         VStack(spacing: 12) {
             RoundedRectangle(cornerRadius: 3)
                 .fill(AppTheme.tertiaryText)
                 .frame(width: 36, height: 5)
-                .padding(.top, 12)
+                .padding(.top, max(12, topInset))
 
             HStack {
                 Button(action: {
@@ -160,67 +181,61 @@ struct FullPlayerView: View {
     }
 
     // MARK: - Artwork
-    private var artworkSection: some View {
+    private func artworkSection(size: CGFloat) -> some View {
         ZStack {
             if let song = playerVM.currentSong {
-                if let videoId = playerVM.youtubeVideoId {
-                    YouTubePlayerView(videoId: videoId)
-                        .frame(width: 320, height: 220)
-                        .cornerRadius(16)
-                        .shadow(color: Color.black.opacity(0.5), radius: 25, x: 0, y: 10)
-                } else {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 20)
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color(hex: song.source.color).opacity(0.5), AppTheme.cardColor],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
+                ZStack {
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(hex: song.source.color).opacity(0.5), AppTheme.cardColor],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
                             )
-                            .frame(width: 300, height: 300)
+                        )
+                        .frame(width: size, height: size)
 
-                        if let artworkURL = song.artworkURL, let url = URL(string: artworkURL) {
-                            AsyncImage(url: url) { phase in
-                                switch phase {
-                                case .success(let image):
-                                    image
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(width: 300, height: 300)
-                                        .clipShape(RoundedRectangle(cornerRadius: 20))
-                                case .failure(_):
-                                    albumPlaceholder
-                                case .empty:
-                                    ProgressView()
-                                        .frame(width: 300, height: 300)
-                                @unknown default:
-                                    albumPlaceholder
-                                }
+                    if let artworkURL = song.artworkURL, let url = URL(string: artworkURL) {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: size, height: size)
+                                    .clipShape(RoundedRectangle(cornerRadius: 20))
+                            case .failure(_):
+                                albumPlaceholder(size: size)
+                            case .empty:
+                                ProgressView()
+                                    .frame(width: size, height: size)
+                            @unknown default:
+                                albumPlaceholder(size: size)
                             }
-                        } else {
-                            albumPlaceholder
                         }
+                    } else {
+                        albumPlaceholder(size: size)
                     }
-                    .shadow(color: Color.black.opacity(0.5), radius: 30, x: 0, y: 15)
-                    .scaleEffect(playerVM.isPlaying ? 1.0 : 0.9)
-                    .animation(.easeInOut(duration: 0.5), value: playerVM.isPlaying)
                 }
+                .shadow(color: Color.black.opacity(0.5), radius: 30, x: 0, y: 15)
+                .scaleEffect(playerVM.isPlaying ? 1.0 : 0.9)
+                .animation(.easeInOut(duration: 0.5), value: playerVM.isPlaying)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
-    private var albumPlaceholder: some View {
+    private func albumPlaceholder(size: CGFloat) -> some View {
         VStack {
             Image(systemName: "music.note")
-                .font(.system(size: 60))
+                .font(.system(size: size * 0.2))
                 .foregroundColor(AppTheme.secondaryText)
         }
-        .frame(width: 300, height: 300)
+        .frame(width: size, height: size)
     }
 
     // MARK: - Lyrics View
-    private var lyricsView: some View {
+    private func lyricsView(maxHeight: CGFloat) -> some View {
         VStack {
             if playerVM.isLoadingLyrics {
                 ProgressView()
@@ -238,28 +253,30 @@ struct FullPlayerView: View {
                 }
             }
         }
-        .frame(height: 300)
+        .frame(maxWidth: .infinity)
+        .frame(height: maxHeight)
         .background(AppTheme.cardColor.opacity(0.3))
         .cornerRadius(16)
     }
 
     // MARK: - Song Info
     private var songInfoSection: some View {
-        HStack {
+        HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(playerVM.currentSong?.title ?? "Not Playing")
                     .font(.title2)
                     .fontWeight(.bold)
                     .foregroundColor(AppTheme.primaryText)
                     .lineLimit(1)
+                    .truncationMode(.tail)
 
                 Text(playerVM.currentSong?.artist ?? "")
                     .font(.subheadline)
                     .foregroundColor(AppTheme.secondaryText)
                     .lineLimit(1)
+                    .truncationMode(.tail)
             }
-
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             if let song = playerVM.currentSong {
                 Button(action: { libraryVM.toggleFavorite(song) }) {
@@ -269,8 +286,10 @@ struct FullPlayerView: View {
                         .scaleEffect(libraryVM.isFavorite(song) ? 1.1 : 1.0)
                         .animation(.spring(response: 0.3, dampingFraction: 0.5), value: libraryVM.isFavorite(song))
                 }
+                .padding(.leading, 12)
             }
         }
+        .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
     }
 
@@ -300,6 +319,7 @@ struct FullPlayerView: View {
                     .foregroundColor(AppTheme.secondaryText)
             }
         }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Controls
@@ -357,6 +377,7 @@ struct FullPlayerView: View {
                     )
             }
         }
+        .frame(maxWidth: .infinity, alignment: .center)
         .padding(.vertical, 16)
     }
 
@@ -380,6 +401,7 @@ struct FullPlayerView: View {
                 .font(.caption)
                 .foregroundColor(AppTheme.tertiaryText)
         }
+        .frame(maxWidth: .infinity)
         .padding(.vertical, 4)
     }
 
@@ -409,6 +431,7 @@ struct FullPlayerView: View {
                     .foregroundColor(AppTheme.secondaryText)
             }
         }
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, 40)
         .padding(.top, 8)
     }

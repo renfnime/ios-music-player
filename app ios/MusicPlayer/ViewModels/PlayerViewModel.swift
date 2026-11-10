@@ -26,7 +26,6 @@ class PlayerViewModel: ObservableObject {
     @Published var customBands: [Float] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
     private let audioPlayer = AudioPlayerService.shared
-    private let youtubePlayer = YouTubePlayerController.shared
     private var cancellables = Set<AnyCancellable>()
     private var originalQueue: [Song] = []
 
@@ -39,27 +38,21 @@ class PlayerViewModel: ObservableObject {
         audioPlayer.$isPlaying
             .receive(on: DispatchQueue.main)
             .sink { [weak self] playing in
-                if self?.currentSong?.source != .youtube {
-                    self?.isPlaying = playing
-                }
+                self?.isPlaying = playing
             }
             .store(in: &cancellables)
 
         audioPlayer.$currentTime
             .receive(on: DispatchQueue.main)
             .sink { [weak self] time in
-                if self?.currentSong?.source != .youtube {
-                    self?.currentTime = time
-                }
+                self?.currentTime = time
             }
             .store(in: &cancellables)
 
         audioPlayer.$duration
             .receive(on: DispatchQueue.main)
             .sink { [weak self] dur in
-                if self?.currentSong?.source != .youtube {
-                    self?.duration = dur
-                }
+                self?.duration = dur
             }
             .store(in: &cancellables)
 
@@ -68,42 +61,6 @@ class PlayerViewModel: ObservableObject {
         }
 
         audioPlayer.onPlaybackError = { [weak self] _ in
-            guard let self = self, let song = self.currentSong else { return }
-            self.resolveAndPlayAudioFallback(for: song)
-        }
-
-        youtubePlayer.$isPlaying
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] playing in
-                if self?.currentSong?.source == .youtube {
-                    self?.isPlaying = playing
-                }
-            }
-            .store(in: &cancellables)
-
-        youtubePlayer.$currentTime
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] time in
-                if self?.currentSong?.source == .youtube {
-                    self?.currentTime = time
-                }
-            }
-            .store(in: &cancellables)
-
-        youtubePlayer.$duration
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] dur in
-                if self?.currentSong?.source == .youtube && dur > 0 {
-                    self?.duration = dur
-                }
-            }
-            .store(in: &cancellables)
-
-        youtubePlayer.onPlaybackFinished = { [weak self] in
-            self?.playNext(userInitiated: false)
-        }
-
-        youtubePlayer.onError = { [weak self] _ in
             guard let self = self, let song = self.currentSong else { return }
             self.resolveAndPlayAudioFallback(for: song)
         }
@@ -151,28 +108,16 @@ class PlayerViewModel: ObservableObject {
         currentSong = song
         playHistory.append(song)
 
-        if song.source == .youtube {
-            audioPlayer.stop()
-            audioPlayer.activateAudioSession()
-            self.youtubeVideoId = song.youtubeVideoId
-            self.isPlaying = true
-            if let vid = song.youtubeVideoId, !vid.isEmpty {
-                youtubePlayer.load(videoId: vid)
-            } else {
-                resolveAndPlayAudioFallback(for: song)
-            }
+        self.youtubeVideoId = song.youtubeVideoId
+
+        if let localPath = song.localFilePath, song.isDownloaded {
+            audioPlayer.playLocalFile(path: localPath)
+        } else if let streamURL = song.streamURL ?? song.previewURL,
+                  let url = Self.parseURL(from: streamURL),
+                  !streamURL.contains("last.fm") && !streamURL.contains("youtube.com") {
+            audioPlayer.play(url: url)
         } else {
-            youtubePlayer.stop()
-            self.youtubeVideoId = nil
-            if let localPath = song.localFilePath, song.isDownloaded {
-                audioPlayer.playLocalFile(path: localPath)
-            } else if let streamURL = song.streamURL ?? song.previewURL,
-                      let url = Self.parseURL(from: streamURL),
-                      !streamURL.contains("last.fm") && !streamURL.contains("youtube.com") {
-                audioPlayer.play(url: url)
-            } else {
-                resolveAndPlayAudioFallback(for: song)
-            }
+            resolveAndPlayAudioFallback(for: song)
         }
 
         updateNowPlayingInfo()
@@ -180,12 +125,7 @@ class PlayerViewModel: ObservableObject {
     }
 
     func togglePlayPause() {
-        if currentSong?.source == .youtube {
-            youtubePlayer.togglePlayPause()
-            isPlaying = youtubePlayer.isPlaying
-        } else {
-            audioPlayer.togglePlayPause()
-        }
+        audioPlayer.togglePlayPause()
         updateNowPlayingInfo()
     }
 
@@ -213,7 +153,6 @@ class PlayerViewModel: ObservableObject {
                 play(song: current)
             case .off:
                 audioPlayer.stop()
-                youtubePlayer.stop()
                 isPlaying = false
             }
         }
@@ -238,12 +177,7 @@ class PlayerViewModel: ObservableObject {
     }
 
     func seek(to time: TimeInterval) {
-        if currentSong?.source == .youtube {
-            youtubePlayer.seek(to: time)
-            currentTime = time
-        } else {
-            audioPlayer.seek(to: time)
-        }
+        audioPlayer.seek(to: time)
     }
 
     func setVolume(_ vol: Float) {

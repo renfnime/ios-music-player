@@ -58,20 +58,12 @@ struct ContentView: View {
                     .zIndex(10)
             }
 
-            // Persistent YouTube background player host (keeps playback alive without WebKit throttling)
-            if let videoId = playerVM.youtubeVideoId, !playerVM.showFullPlayer {
-                YouTubePlayerView(videoId: videoId)
-                    .frame(width: 320, height: 220)
-                    .offset(x: -9999, y: -9999)
-                    .allowsHitTesting(false)
-                    .zIndex(-100)
-            }
-
             // Full Screen Player Overlay (permanently preserves UITabBar and UINavigationBar across presentation)
             if playerVM.showFullPlayer {
                 FullPlayerView()
                     .environmentObject(playerVM)
                     .environmentObject(libraryVM)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .transition(.asymmetric(
                         insertion: .move(edge: .bottom),
                         removal: .move(edge: .bottom)
