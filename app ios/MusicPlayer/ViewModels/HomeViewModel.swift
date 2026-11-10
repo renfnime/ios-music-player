@@ -37,7 +37,13 @@ class HomeViewModel: ObservableObject {
     }
 
     private func loadJamendoTrending() async -> [Song] {
-        (try? await JamendoService.shared.getTrending()) ?? []
+        if let results = try? await JamendoService.shared.getTrending(), !results.isEmpty {
+            return results
+        }
+        if let deezer = try? await DeezerService.shared.getChart(), deezer.count > 5 {
+            return Array(deezer.suffix(from: 5))
+        }
+        return sampleSongs()
     }
 
     private func loadDeezerArtists() async -> [Artist] {

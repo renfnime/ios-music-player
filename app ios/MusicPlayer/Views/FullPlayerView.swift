@@ -57,6 +57,7 @@ struct FullPlayerView: View {
                 }
                 .onEnded { value in
                     if value.translation.height > 100 {
+                        playerVM.showFullPlayer = false
                         dismiss()
                     }
                     dragOffset = 0
@@ -101,7 +102,10 @@ struct FullPlayerView: View {
                 .padding(.top, 12)
 
             HStack {
-                Button(action: { dismiss() }) {
+                Button(action: {
+                    playerVM.showFullPlayer = false
+                    dismiss()
+                }) {
                     Image(systemName: "chevron.down")
                         .font(.title3)
                         .foregroundColor(AppTheme.primaryText)

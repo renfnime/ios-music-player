@@ -11,6 +11,8 @@ class AudioPlayerService: NSObject, ObservableObject {
     private var playerItem: AVPlayerItem?
     private var timeObserver: Any?
     private var statusObservation: NSKeyValueObservation?
+    private var bufferEmptyObservation: NSKeyValueObservation?
+    private var bufferKeepUpObservation: NSKeyValueObservation?
 
     @Published var isPlaying = false
     @Published var currentTime: TimeInterval = 0
@@ -24,31 +26,126 @@ class AudioPlayerService: NSObject, ObservableObject {
     private override init() {
         super.init()
         setupAudioSession()
+        setupNotifications()
     }
 
     // MARK: - Audio Session
     private func setupAudioSession() {
+        activateAudioSession()
+    }
+
+    func activateAudioSession() {
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default, options: [.allowAirPlay, .allowBluetooth])
+            try session.setCategory(.playback, mode: .default, options: [.allowAirPlay, .allowBluetoothA2DP])
             try session.setActive(true)
         } catch {
-            print("Audio session error: \(error)")
+            do {
+                let session = AVAudioSession.sharedInstance()
+                try session.setCategory(.playback, mode: .default)
+                try session.setActive(true)
+            } catch {
+                print("Audio session setup failed: \(error)")
+            }
+        }
+    }
+
+    private func setupNotifications() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleInterruption),
+            name: AVAudioSession.interruptionNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleRouteChange),
+            name: AVAudioSession.routeChangeNotification,
+            object: nil
+        )
+    }
+
+    @objc private func handleInterruption(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
+
+        DispatchQueue.main.async { [weak self] in
+            switch type {
+            case .began:
+                self?.pause()
+            case .ended:
+                guard let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt else { return }
+                let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+                if options.contains(.shouldResume) {
+                    self?.resume()
+                }
+            @unknown default:
+                break
+            }
+        }
+    }
+
+    @objc private func handleRouteChange(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else { return }
+
+        if reason == .oldDeviceUnavailable {
+            DispatchQueue.main.async { [weak self] in
+                self?.pause()
+            }
         }
     }
 
     // MARK: - Playback Controls
     func play(url: URL) {
         stop()
+        activateAudioSession()
 
         playerItem = AVPlayerItem(url: url)
         player = AVPlayer(playerItem: playerItem)
+        player?.automaticallyWaitsToMinimizeStalling = false
         player?.volume = volume
 
-        // Observe buffering state via KVO using modern API
-        statusObservation = playerItem?.observe(\.isPlaybackBufferEmpty, options: [.new]) { [weak self] item, _ in
+        // Observe player item status for readiness and errors
+        statusObservation = playerItem?.observe(\.status, options: [.new, .initial]) { [weak self] item, _ in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                switch item.status {
+                case .readyToPlay:
+                    self.isBuffering = false
+                    if let dur = self.playerItem?.duration.seconds, !dur.isNaN, dur > 0 {
+                        self.duration = dur
+                    }
+                    if self.isPlaying {
+                        self.player?.play()
+                    }
+                case .failed:
+                    print("AVPlayerItem failed with error: \(String(describing: item.error))")
+                    self.isPlaying = false
+                    self.isBuffering = false
+                case .unknown:
+                    break
+                @unknown default:
+                    break
+                }
+            }
+        }
+
+        // Observe buffering state via KVO
+        bufferEmptyObservation = playerItem?.observe(\.isPlaybackBufferEmpty, options: [.new]) { [weak self] item, _ in
             DispatchQueue.main.async {
                 self?.isBuffering = item.isPlaybackBufferEmpty
+            }
+        }
+
+        bufferKeepUpObservation = playerItem?.observe(\.isPlaybackLikelyToKeepUp, options: [.new]) { [weak self] item, _ in
+            DispatchQueue.main.async {
+                if item.isPlaybackLikelyToKeepUp && self?.isPlaying == true {
+                    self?.isBuffering = false
+                    self?.player?.play()
+                }
             }
         }
 
@@ -125,6 +222,7 @@ class AudioPlayerService: NSObject, ObservableObject {
     }
 
     func resume() {
+        activateAudioSession()
         player?.play()
         isPlaying = true
     }
@@ -136,6 +234,10 @@ class AudioPlayerService: NSObject, ObservableObject {
         }
         statusObservation?.invalidate()
         statusObservation = nil
+        bufferEmptyObservation?.invalidate()
+        bufferEmptyObservation = nil
+        bufferKeepUpObservation?.invalidate()
+        bufferKeepUpObservation = nil
         NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: playerItem)
         NotificationCenter.default.removeObserver(self, name: .AVPlayerItemFailedToPlayToEndTime, object: playerItem)
         player?.pause()
@@ -184,13 +286,14 @@ class AudioPlayerService: NSObject, ObservableObject {
     }
 
     // MARK: - Now Playing Info
-    func updateNowPlayingInfo(song: Song, artwork: UIImage? = nil) {
+    func updateNowPlayingInfo(song: Song, artwork: UIImage? = nil, explicitCurrentTime: TimeInterval? = nil, explicitDuration: TimeInterval? = nil) {
         var nowPlayingInfo = [String: Any]()
         nowPlayingInfo[MPMediaItemPropertyTitle] = song.title
         nowPlayingInfo[MPMediaItemPropertyArtist] = song.artist
         nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = song.album
-        nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = song.duration
-        nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime
+        let effectiveDuration = explicitDuration ?? (song.duration > 0 ? song.duration : duration)
+        nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = effectiveDuration
+        nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = explicitCurrentTime ?? currentTime
         nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
 
         if let image = artwork {

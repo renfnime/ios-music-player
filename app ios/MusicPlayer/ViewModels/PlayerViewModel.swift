@@ -26,6 +26,7 @@ class PlayerViewModel: ObservableObject {
     @Published var customBands: [Float] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
     private let audioPlayer = AudioPlayerService.shared
+    private let youtubePlayer = YouTubePlayerController.shared
     private var cancellables = Set<AnyCancellable>()
     private var originalQueue: [Song] = []
 
@@ -37,17 +38,63 @@ class PlayerViewModel: ObservableObject {
     private func setupBindings() {
         audioPlayer.$isPlaying
             .receive(on: DispatchQueue.main)
-            .assign(to: &$isPlaying)
+            .sink { [weak self] playing in
+                if self?.currentSong?.source != .youtube {
+                    self?.isPlaying = playing
+                }
+            }
+            .store(in: &cancellables)
 
         audioPlayer.$currentTime
             .receive(on: DispatchQueue.main)
-            .assign(to: &$currentTime)
+            .sink { [weak self] time in
+                if self?.currentSong?.source != .youtube {
+                    self?.currentTime = time
+                }
+            }
+            .store(in: &cancellables)
 
         audioPlayer.$duration
             .receive(on: DispatchQueue.main)
-            .assign(to: &$duration)
+            .sink { [weak self] dur in
+                if self?.currentSong?.source != .youtube {
+                    self?.duration = dur
+                }
+            }
+            .store(in: &cancellables)
 
         audioPlayer.onPlaybackFinished = { [weak self] in
+            self?.playNext(userInitiated: false)
+        }
+
+        youtubePlayer.$isPlaying
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] playing in
+                if self?.currentSong?.source == .youtube {
+                    self?.isPlaying = playing
+                }
+            }
+            .store(in: &cancellables)
+
+        youtubePlayer.$currentTime
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] time in
+                if self?.currentSong?.source == .youtube {
+                    self?.currentTime = time
+                }
+            }
+            .store(in: &cancellables)
+
+        youtubePlayer.$duration
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] dur in
+                if self?.currentSong?.source == .youtube && dur > 0 {
+                    self?.duration = dur
+                }
+            }
+            .store(in: &cancellables)
+
+        youtubePlayer.onPlaybackFinished = { [weak self] in
             self?.playNext(userInitiated: false)
         }
     }
@@ -95,36 +142,30 @@ class PlayerViewModel: ObservableObject {
         playHistory.append(song)
 
         if song.source == .youtube {
+            audioPlayer.stop()
+            audioPlayer.activateAudioSession()
             self.youtubeVideoId = song.youtubeVideoId
             self.isPlaying = true
-            Task {
-                let query = "\(song.artist) \(song.title)"
-                if let deezerTracks = try? await DeezerService.shared.search(query: query),
-                   let match = deezerTracks.first,
-                   let stream = match.previewURL ?? match.streamURL,
-                   let url = URL(string: stream) {
-                    await MainActor.run {
-                        if self.currentSong?.id == song.id {
-                            self.audioPlayer.play(url: url)
-                        }
-                    }
-                }
+            if let vid = song.youtubeVideoId {
+                youtubePlayer.load(videoId: vid)
             }
         } else {
+            youtubePlayer.stop()
             self.youtubeVideoId = nil
             if let localPath = song.localFilePath, song.isDownloaded {
                 audioPlayer.playLocalFile(path: localPath)
             } else if let streamURL = song.streamURL ?? song.previewURL,
-                      let url = URL(string: streamURL),
+                      let url = Self.parseURL(from: streamURL),
                       !streamURL.contains("last.fm") && !streamURL.contains("youtube.com") {
                 audioPlayer.play(url: url)
             } else {
                 Task {
-                    let query = "\(song.artist) \(song.title)"
+                    let cleanedTitle = Self.cleanTitle(song.title)
+                    let query = "\(song.artist) \(cleanedTitle)"
                     if let deezerTracks = try? await DeezerService.shared.search(query: query),
-                       let match = deezerTracks.first,
+                       let match = deezerTracks.first(where: { ($0.previewURL ?? $0.streamURL) != nil }),
                        let stream = match.previewURL ?? match.streamURL,
-                       let url = URL(string: stream) {
+                       let url = Self.parseURL(from: stream) {
                         await MainActor.run {
                             if self.currentSong?.id == song.id {
                                 self.audioPlayer.play(url: url)
@@ -140,7 +181,12 @@ class PlayerViewModel: ObservableObject {
     }
 
     func togglePlayPause() {
-        audioPlayer.togglePlayPause()
+        if currentSong?.source == .youtube {
+            youtubePlayer.togglePlayPause()
+            isPlaying = youtubePlayer.isPlaying
+        } else {
+            audioPlayer.togglePlayPause()
+        }
         updateNowPlayingInfo()
     }
 
@@ -168,6 +214,7 @@ class PlayerViewModel: ObservableObject {
                 play(song: current)
             case .off:
                 audioPlayer.stop()
+                youtubePlayer.stop()
                 isPlaying = false
             }
         }
@@ -192,7 +239,12 @@ class PlayerViewModel: ObservableObject {
     }
 
     func seek(to time: TimeInterval) {
-        audioPlayer.seek(to: time)
+        if currentSong?.source == .youtube {
+            youtubePlayer.seek(to: time)
+            currentTime = time
+        } else {
+            audioPlayer.seek(to: time)
+        }
     }
 
     func setVolume(_ vol: Float) {
@@ -268,25 +320,63 @@ class PlayerViewModel: ObservableObject {
     private func updateNowPlayingInfo() {
         guard let song = currentSong else { return }
 
+        let curTime = currentTime
+        let dur = duration > 0 ? duration : song.duration
+
         // Load artwork and update
-        if let artworkURL = song.artworkURL, let url = URL(string: artworkURL) {
+        if let artworkURL = song.artworkURL, let url = Self.parseURL(from: artworkURL) {
             Task {
                 do {
                     let data = try await NetworkService.shared.requestData(url: url)
                     if let image = UIImage(data: data) {
                         await MainActor.run {
-                            self.audioPlayer.updateNowPlayingInfo(song: song, artwork: image)
+                            self.audioPlayer.updateNowPlayingInfo(
+                                song: song,
+                                artwork: image,
+                                explicitCurrentTime: curTime,
+                                explicitDuration: dur
+                            )
                         }
                     }
                 } catch {
                     await MainActor.run {
-                        self.audioPlayer.updateNowPlayingInfo(song: song)
+                        self.audioPlayer.updateNowPlayingInfo(
+                            song: song,
+                            explicitCurrentTime: curTime,
+                            explicitDuration: dur
+                        )
                     }
                 }
             }
         } else {
-            audioPlayer.updateNowPlayingInfo(song: song)
+            audioPlayer.updateNowPlayingInfo(
+                song: song,
+                explicitCurrentTime: curTime,
+                explicitDuration: dur
+            )
         }
+    }
+
+    // MARK: - Helpers
+    static func cleanTitle(_ title: String) -> String {
+        var cleaned = title
+        cleaned = cleaned.replacingOccurrences(of: "\\s*[\\[\\(].*?[\\]\\)]", with: "", options: .regularExpression)
+        let noiseWords = ["ft.", "feat.", "official", "audio", "video", "lyrics", "remix", "4k", "hd"]
+        for word in noiseWords {
+            cleaned = cleaned.replacingOccurrences(of: word, with: "", options: .caseInsensitive)
+        }
+        return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func parseURL(from string: String) -> URL? {
+        if let url = URL(string: string) {
+            return url
+        }
+        if let encoded = string.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+           let url = URL(string: encoded) {
+            return url
+        }
+        return nil
     }
 
     // MARK: - Computed Properties

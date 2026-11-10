@@ -22,43 +22,56 @@ struct ContentView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            TabView(selection: $selectedTab) {
-                HomeView()
-                    .tag(Tab.home)
-                    .tabItem {
-                        Label(Tab.home.rawValue, systemImage: Tab.home.icon)
-                    }
+        GeometryReader { geometry in
+            let bottomSafeArea = geometry.safeAreaInsets.bottom
+            let tabBarHeight: CGFloat = 49 + bottomSafeArea
 
-                SearchView()
-                    .tag(Tab.search)
-                    .tabItem {
-                        Label(Tab.search.rawValue, systemImage: Tab.search.icon)
-                    }
+            ZStack(alignment: .bottom) {
+                TabView(selection: $selectedTab) {
+                    HomeView()
+                        .tag(Tab.home)
+                        .tabItem {
+                            Label(Tab.home.rawValue, systemImage: Tab.home.icon)
+                        }
 
-                LibraryView()
-                    .tag(Tab.library)
-                    .tabItem {
-                        Label(Tab.library.rawValue, systemImage: Tab.library.icon)
-                    }
+                    SearchView()
+                        .tag(Tab.search)
+                        .tabItem {
+                            Label(Tab.search.rawValue, systemImage: Tab.search.icon)
+                        }
 
-                SettingsView()
-                    .tag(Tab.settings)
-                    .tabItem {
-                        Label(Tab.settings.rawValue, systemImage: Tab.settings.icon)
-                    }
-            }
-            .accentColor(AppTheme.accentColor)
-            .padding(.bottom, playerVM.currentSong != nil ? 64 : 0)
+                    LibraryView()
+                        .tag(Tab.library)
+                        .tabItem {
+                            Label(Tab.library.rawValue, systemImage: Tab.library.icon)
+                        }
 
-            if playerVM.currentSong != nil {
-                VStack(spacing: 0) {
+                    SettingsView()
+                        .tag(Tab.settings)
+                        .tabItem {
+                            Label(Tab.settings.rawValue, systemImage: Tab.settings.icon)
+                        }
+                }
+                .accentColor(AppTheme.accentColor)
+
+                // MiniPlayer positioned directly above the native UITabBar
+                if playerVM.currentSong != nil {
                     MiniPlayerView()
-                        .padding(.bottom, 49)
+                        .padding(.bottom, tabBarHeight)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+
+                // Persistent YouTube background player host (keeps playback alive when full player is closed)
+                if let videoId = playerVM.youtubeVideoId, !playerVM.showFullPlayer {
+                    YouTubePlayerView(videoId: videoId)
+                        .frame(width: 1, height: 1)
+                        .opacity(0.01)
+                        .allowsHitTesting(false)
                 }
             }
+            .ignoresSafeArea(.keyboard, edges: .bottom)
         }
-        .sheet(isPresented: $playerVM.showFullPlayer) {
+        .fullScreenCover(isPresented: $playerVM.showFullPlayer) {
             FullPlayerView()
                 .environmentObject(playerVM)
                 .environmentObject(libraryVM)
