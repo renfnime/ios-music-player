@@ -58,16 +58,16 @@ struct FullPlayerView: View {
                     Spacer().frame(height: max(20, geometry.safeAreaInsets.bottom))
                 }
                 .padding(.horizontal, 24)
-                .frame(width: geometry.size.width, height: geometry.size.height)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .clipped()
         }
+        .contentShape(Rectangle())
         .gesture(
             DragGesture()
                 .onChanged { value in
-                    // Only respond to vertical downward drags
-                    if value.translation.height > 0 && abs(value.translation.height) > abs(value.translation.width) {
+                    if value.translation.height > 0 {
                         dragOffset = value.translation.height
                     }
                 }
@@ -95,7 +95,7 @@ struct FullPlayerView: View {
 
             if let song = playerVM.currentSong,
                let artworkURL = song.artworkURL,
-               let url = URL(string: artworkURL) {
+               let url = PlayerViewModel.parseURL(from: artworkURL) {
                 AsyncImage(url: url) { phase in
                     if case .success(let image) = phase {
                         image
@@ -107,6 +107,8 @@ struct FullPlayerView: View {
                             .overlay(Color.black.opacity(0.6))
                     }
                 }
+                .frame(width: screenSize.width, height: screenSize.height)
+                .clipped()
             }
             AppTheme.backgroundColor.opacity(0.7)
         }
@@ -132,6 +134,7 @@ struct FullPlayerView: View {
                     Image(systemName: "chevron.down")
                         .font(.title3)
                         .foregroundColor(AppTheme.primaryText)
+                        .frame(width: 44, height: 44, alignment: .leading)
                 }
 
                 Spacer()
@@ -175,6 +178,7 @@ struct FullPlayerView: View {
                     Image(systemName: "ellipsis")
                         .font(.title3)
                         .foregroundColor(AppTheme.primaryText)
+                        .frame(width: 44, height: 44, alignment: .trailing)
                 }
             }
         }
@@ -195,7 +199,7 @@ struct FullPlayerView: View {
                         )
                         .frame(width: size, height: size)
 
-                    if let artworkURL = song.artworkURL, let url = URL(string: artworkURL) {
+                    if let artworkURL = song.artworkURL, let url = PlayerViewModel.parseURL(from: artworkURL) {
                         AsyncImage(url: url) { phase in
                             switch phase {
                             case .success(let image):
@@ -213,10 +217,13 @@ struct FullPlayerView: View {
                                 albumPlaceholder(size: size)
                             }
                         }
+                        .frame(width: size, height: size)
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
                     } else {
                         albumPlaceholder(size: size)
                     }
                 }
+                .frame(width: size, height: size)
                 .shadow(color: Color.black.opacity(0.5), radius: 30, x: 0, y: 15)
                 .scaleEffect(playerVM.isPlaying ? 1.0 : 0.9)
                 .animation(.easeInOut(duration: 0.5), value: playerVM.isPlaying)
@@ -285,8 +292,9 @@ struct FullPlayerView: View {
                         .foregroundColor(libraryVM.isFavorite(song) ? AppTheme.accentColor : AppTheme.secondaryText)
                         .scaleEffect(libraryVM.isFavorite(song) ? 1.1 : 1.0)
                         .animation(.spring(response: 0.3, dampingFraction: 0.5), value: libraryVM.isFavorite(song))
+                        .frame(width: 44, height: 44, alignment: .trailing)
                 }
-                .padding(.leading, 12)
+                .padding(.leading, 8)
             }
         }
         .frame(maxWidth: .infinity)
@@ -409,7 +417,7 @@ struct FullPlayerView: View {
     private var bottomActions: some View {
         HStack {
             AirPlayView()
-                .frame(width: 30, height: 30)
+                .frame(width: 44, height: 44)
 
             Spacer()
 
@@ -421,6 +429,7 @@ struct FullPlayerView: View {
                 Image(systemName: "text.quote")
                     .font(.body)
                     .foregroundColor(playerVM.showLyrics ? AppTheme.accentColor : AppTheme.secondaryText)
+                    .frame(width: 44, height: 44)
             }
 
             Spacer()
@@ -429,10 +438,11 @@ struct FullPlayerView: View {
                 Image(systemName: "list.bullet")
                     .font(.body)
                     .foregroundColor(AppTheme.secondaryText)
+                    .frame(width: 44, height: 44)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 40)
+        .padding(.horizontal, 32)
         .padding(.top, 8)
     }
 }
