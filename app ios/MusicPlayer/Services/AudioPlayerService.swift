@@ -22,6 +22,7 @@ class AudioPlayerService: NSObject, ObservableObject {
     @Published var playbackRate: Float = 1.0
 
     var onPlaybackFinished: (() -> Void)?
+    var onPlaybackError: ((Error?) -> Void)?
 
     private override init() {
         super.init()
@@ -37,16 +38,10 @@ class AudioPlayerService: NSObject, ObservableObject {
     func activateAudioSession() {
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default, options: [.allowAirPlay, .allowBluetoothA2DP])
+            try session.setCategory(.playback, mode: .default)
             try session.setActive(true)
         } catch {
-            do {
-                let session = AVAudioSession.sharedInstance()
-                try session.setCategory(.playback, mode: .default)
-                try session.setActive(true)
-            } catch {
-                print("Audio session setup failed: \(error)")
-            }
+            print("Audio session setup failed: \(error)")
         }
     }
 
@@ -105,7 +100,7 @@ class AudioPlayerService: NSObject, ObservableObject {
 
         playerItem = AVPlayerItem(url: url)
         player = AVPlayer(playerItem: playerItem)
-        player?.automaticallyWaitsToMinimizeStalling = false
+        player?.automaticallyWaitsToMinimizeStalling = true
         player?.volume = volume
 
         // Observe player item status for readiness and errors
@@ -125,6 +120,7 @@ class AudioPlayerService: NSObject, ObservableObject {
                     print("AVPlayerItem failed with error: \(String(describing: item.error))")
                     self.isPlaying = false
                     self.isBuffering = false
+                    self.onPlaybackError?(item.error)
                 case .unknown:
                     break
                 @unknown default:
@@ -223,8 +219,13 @@ class AudioPlayerService: NSObject, ObservableObject {
 
     func resume() {
         activateAudioSession()
-        player?.play()
-        isPlaying = true
+        if let player = player {
+            if let dur = playerItem?.duration.seconds, !dur.isNaN, dur > 0, currentTime >= dur - 0.5 {
+                seek(to: 0)
+            }
+            player.play()
+            isPlaying = true
+        }
     }
 
     func stop() {
@@ -275,6 +276,7 @@ class AudioPlayerService: NSObject, ObservableObject {
         DispatchQueue.main.async { [weak self] in
             self?.isPlaying = false
             self?.isBuffering = false
+            self?.onPlaybackError?(self?.playerItem?.error)
         }
     }
 

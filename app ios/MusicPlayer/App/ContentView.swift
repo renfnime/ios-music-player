@@ -22,59 +22,65 @@ struct ContentView: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            let bottomSafeArea = geometry.safeAreaInsets.bottom
-            let tabBarHeight: CGFloat = 49 + bottomSafeArea
+        ZStack(alignment: .bottom) {
+            TabView(selection: $selectedTab) {
+                HomeView()
+                    .tag(Tab.home)
+                    .tabItem {
+                        Label(Tab.home.rawValue, systemImage: Tab.home.icon)
+                    }
 
-            ZStack(alignment: .bottom) {
-                TabView(selection: $selectedTab) {
-                    HomeView()
-                        .tag(Tab.home)
-                        .tabItem {
-                            Label(Tab.home.rawValue, systemImage: Tab.home.icon)
-                        }
+                SearchView()
+                    .tag(Tab.search)
+                    .tabItem {
+                        Label(Tab.search.rawValue, systemImage: Tab.search.icon)
+                    }
 
-                    SearchView()
-                        .tag(Tab.search)
-                        .tabItem {
-                            Label(Tab.search.rawValue, systemImage: Tab.search.icon)
-                        }
+                LibraryView()
+                    .tag(Tab.library)
+                    .tabItem {
+                        Label(Tab.library.rawValue, systemImage: Tab.library.icon)
+                    }
 
-                    LibraryView()
-                        .tag(Tab.library)
-                        .tabItem {
-                            Label(Tab.library.rawValue, systemImage: Tab.library.icon)
-                        }
-
-                    SettingsView()
-                        .tag(Tab.settings)
-                        .tabItem {
-                            Label(Tab.settings.rawValue, systemImage: Tab.settings.icon)
-                        }
-                }
-                .accentColor(AppTheme.accentColor)
-
-                // MiniPlayer positioned directly above the native UITabBar
-                if playerVM.currentSong != nil {
-                    MiniPlayerView()
-                        .padding(.bottom, tabBarHeight)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-
-                // Persistent YouTube background player host (keeps playback alive when full player is closed)
-                if let videoId = playerVM.youtubeVideoId, !playerVM.showFullPlayer {
-                    YouTubePlayerView(videoId: videoId)
-                        .frame(width: 1, height: 1)
-                        .opacity(0.01)
-                        .allowsHitTesting(false)
-                }
+                SettingsView()
+                    .tag(Tab.settings)
+                    .tabItem {
+                        Label(Tab.settings.rawValue, systemImage: Tab.settings.icon)
+                    }
             }
-            .ignoresSafeArea(.keyboard, edges: .bottom)
+            .accentColor(AppTheme.accentColor)
+
+            // MiniPlayer positioned directly above the native UITabBar
+            if playerVM.currentSong != nil && !playerVM.showFullPlayer {
+                MiniPlayerView()
+                    .padding(.bottom, 49)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(10)
+            }
+
+            // Persistent YouTube background player host (keeps playback alive without WebKit throttling)
+            if let videoId = playerVM.youtubeVideoId, !playerVM.showFullPlayer {
+                YouTubePlayerView(videoId: videoId)
+                    .frame(width: 320, height: 220)
+                    .offset(x: -9999, y: -9999)
+                    .allowsHitTesting(false)
+                    .zIndex(-100)
+            }
+
+            // Full Screen Player Overlay (permanently preserves UITabBar and UINavigationBar across presentation)
+            if playerVM.showFullPlayer {
+                FullPlayerView()
+                    .environmentObject(playerVM)
+                    .environmentObject(libraryVM)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .bottom),
+                        removal: .move(edge: .bottom)
+                    ))
+                    .zIndex(100)
+                    .ignoresSafeArea()
+            }
         }
-        .fullScreenCover(isPresented: $playerVM.showFullPlayer) {
-            FullPlayerView()
-                .environmentObject(playerVM)
-                .environmentObject(libraryVM)
-        }
+        .animation(.spring(response: 0.38, dampingFraction: 0.85), value: playerVM.showFullPlayer)
+        .ignoresSafeArea(.keyboard, edges: .bottom)
     }
 }

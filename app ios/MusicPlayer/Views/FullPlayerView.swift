@@ -57,13 +57,14 @@ struct FullPlayerView: View {
                 }
                 .onEnded { value in
                     if value.translation.height > 100 {
-                        playerVM.showFullPlayer = false
-                        dismiss()
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                            playerVM.showFullPlayer = false
+                        }
                     }
                     dragOffset = 0
                 }
         )
-        .offset(y: dragOffset)
+        .offset(y: max(0, dragOffset))
         .animation(.interactiveSpring(), value: dragOffset)
         .sheet(isPresented: $showQueue) {
             QueueView()
@@ -103,8 +104,9 @@ struct FullPlayerView: View {
 
             HStack {
                 Button(action: {
-                    playerVM.showFullPlayer = false
-                    dismiss()
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        playerVM.showFullPlayer = false
+                    }
                 }) {
                     Image(systemName: "chevron.down")
                         .font(.title3)

@@ -67,6 +67,11 @@ class PlayerViewModel: ObservableObject {
             self?.playNext(userInitiated: false)
         }
 
+        audioPlayer.onPlaybackError = { [weak self] _ in
+            guard let self = self, let song = self.currentSong else { return }
+            self.resolveAndPlayAudioFallback(for: song)
+        }
+
         youtubePlayer.$isPlaying
             .receive(on: DispatchQueue.main)
             .sink { [weak self] playing in
@@ -96,6 +101,11 @@ class PlayerViewModel: ObservableObject {
 
         youtubePlayer.onPlaybackFinished = { [weak self] in
             self?.playNext(userInitiated: false)
+        }
+
+        youtubePlayer.onError = { [weak self] _ in
+            guard let self = self, let song = self.currentSong else { return }
+            self.resolveAndPlayAudioFallback(for: song)
         }
     }
 
@@ -146,8 +156,10 @@ class PlayerViewModel: ObservableObject {
             audioPlayer.activateAudioSession()
             self.youtubeVideoId = song.youtubeVideoId
             self.isPlaying = true
-            if let vid = song.youtubeVideoId {
+            if let vid = song.youtubeVideoId, !vid.isEmpty {
                 youtubePlayer.load(videoId: vid)
+            } else {
+                resolveAndPlayAudioFallback(for: song)
             }
         } else {
             youtubePlayer.stop()
@@ -159,20 +171,7 @@ class PlayerViewModel: ObservableObject {
                       !streamURL.contains("last.fm") && !streamURL.contains("youtube.com") {
                 audioPlayer.play(url: url)
             } else {
-                Task {
-                    let cleanedTitle = Self.cleanTitle(song.title)
-                    let query = "\(song.artist) \(cleanedTitle)"
-                    if let deezerTracks = try? await DeezerService.shared.search(query: query),
-                       let match = deezerTracks.first(where: { ($0.previewURL ?? $0.streamURL) != nil }),
-                       let stream = match.previewURL ?? match.streamURL,
-                       let url = Self.parseURL(from: stream) {
-                        await MainActor.run {
-                            if self.currentSong?.id == song.id {
-                                self.audioPlayer.play(url: url)
-                            }
-                        }
-                    }
-                }
+                resolveAndPlayAudioFallback(for: song)
             }
         }
 
@@ -358,6 +357,48 @@ class PlayerViewModel: ObservableObject {
     }
 
     // MARK: - Helpers
+    func resolveAndPlayAudioFallback(for song: Song) {
+        Task {
+            let cleanedTitle = Self.cleanTitle(song.title)
+            let query = "\(song.artist) \(cleanedTitle)".trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // 1. Search Deezer for playable 30s preview
+            if let deezerTracks = try? await DeezerService.shared.search(query: query),
+               let match = deezerTracks.first(where: { ($0.previewURL ?? $0.streamURL) != nil }),
+               let stream = match.previewURL ?? match.streamURL,
+               let url = Self.parseURL(from: stream) {
+                await MainActor.run {
+                    if self.currentSong?.id == song.id {
+                        self.audioPlayer.play(url: url)
+                    }
+                }
+                return
+            }
+
+            // 2. Search iTunes for high quality AAC preview
+            if let itunesTrack = try? await iTunesSearchService.shared.searchTrack(query: query),
+               let stream = itunesTrack.previewURL ?? itunesTrack.streamURL,
+               let url = Self.parseURL(from: stream) {
+                await MainActor.run {
+                    if self.currentSong?.id == song.id {
+                        self.audioPlayer.play(url: url)
+                    }
+                }
+                return
+            }
+
+            // 3. Fallback to sample audio
+            let sampleAudio = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
+            if let url = URL(string: sampleAudio) {
+                await MainActor.run {
+                    if self.currentSong?.id == song.id {
+                        self.audioPlayer.play(url: url)
+                    }
+                }
+            }
+        }
+    }
+
     static func cleanTitle(_ title: String) -> String {
         var cleaned = title
         cleaned = cleaned.replacingOccurrences(of: "\\s*[\\[\\(].*?[\\]\\)]", with: "", options: .regularExpression)
@@ -369,10 +410,11 @@ class PlayerViewModel: ObservableObject {
     }
 
     static func parseURL(from string: String) -> URL? {
-        if let url = URL(string: string) {
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let url = URL(string: trimmed) {
             return url
         }
-        if let encoded = string.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+        if let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
            let url = URL(string: encoded) {
             return url
         }

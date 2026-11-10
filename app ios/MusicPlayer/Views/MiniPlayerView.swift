@@ -43,7 +43,9 @@ struct MiniPlayerView: View {
                     }
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        playerVM.showFullPlayer = true
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                            playerVM.showFullPlayer = true
+                        }
                     }
 
                     // Playback Controls

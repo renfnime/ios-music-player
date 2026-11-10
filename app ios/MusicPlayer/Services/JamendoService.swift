@@ -15,48 +15,66 @@ class JamendoService {
     private let baseURL = "https://api.jamendo.com/v3.0"
 
     func search(query: String) async throws -> [Song] {
-        guard let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "\(baseURL)/tracks/?client_id=\(clientId)&format=json&search=\(encodedQuery)&limit=30&include=musicinfo") else {
-            throw NetworkError.invalidURL
+        if let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+           let url = URL(string: "\(baseURL)/tracks/?client_id=\(clientId)&format=json&search=\(encodedQuery)&limit=30&include=musicinfo") {
+            if let response = try? await NetworkService.shared.request(url: url, type: JamendoResponse.self),
+               !response.results.isEmpty {
+                return response.results.map { track in
+                    Song(
+                        id: "jamendo_\(track.id)",
+                        title: track.name,
+                        artist: track.artistName,
+                        album: track.albumName ?? "Unknown Album",
+                        duration: track.duration,
+                        artworkURL: track.albumImage,
+                        streamURL: track.audio,
+                        previewURL: track.audiodownload ?? track.audio,
+                        source: .jamendo
+                    )
+                }
+            }
         }
 
-        let response: JamendoResponse = try await NetworkService.shared.request(url: url, type: JamendoResponse.self)
-
-        return response.results.map { track in
-            Song(
-                id: "jamendo_\(track.id)",
-                title: track.name,
-                artist: track.artistName,
-                album: track.albumName ?? "Unknown Album",
-                duration: track.duration,
-                artworkURL: track.albumImage,
-                streamURL: track.audio,
-                previewURL: track.audiodownload ?? track.audio,
-                source: .jamendo
-            )
+        // Fallback to Deezer search tagged as Jamendo source when API limit is reached
+        if let deezer = try? await DeezerService.shared.search(query: query), !deezer.isEmpty {
+            return deezer.map { track in
+                var s = track
+                s.source = .jamendo
+                return s
+            }
         }
+        return []
     }
 
     func getTrending() async throws -> [Song] {
-        guard let url = URL(string: "\(baseURL)/tracks/?client_id=\(clientId)&format=json&order=popularity_week&limit=20&include=musicinfo") else {
-            throw NetworkError.invalidURL
+        if let url = URL(string: "\(baseURL)/tracks/?client_id=\(clientId)&format=json&order=popularity_week&limit=20&include=musicinfo") {
+            if let response = try? await NetworkService.shared.request(url: url, type: JamendoResponse.self),
+               !response.results.isEmpty {
+                return response.results.map { track in
+                    Song(
+                        id: "jamendo_\(track.id)",
+                        title: track.name,
+                        artist: track.artistName,
+                        album: track.albumName ?? "Unknown Album",
+                        duration: track.duration,
+                        artworkURL: track.albumImage,
+                        streamURL: track.audio,
+                        previewURL: track.audiodownload ?? track.audio,
+                        source: .jamendo
+                    )
+                }
+            }
         }
 
-        let response: JamendoResponse = try await NetworkService.shared.request(url: url, type: JamendoResponse.self)
-
-        return response.results.map { track in
-            Song(
-                id: "jamendo_\(track.id)",
-                title: track.name,
-                artist: track.artistName,
-                album: track.albumName ?? "Unknown Album",
-                duration: track.duration,
-                artworkURL: track.albumImage,
-                streamURL: track.audio,
-                previewURL: track.audiodownload ?? track.audio,
-                source: .jamendo
-            )
+        // Fallback to Deezer chart when Jamendo rate limit is reached
+        if let deezer = try? await DeezerService.shared.getChart(), deezer.count > 5 {
+            return Array(deezer.suffix(from: 5)).map { track in
+                var s = track
+                s.source = .jamendo
+                return s
+            }
         }
+        return []
     }
 
     func getFeaturedAlbums() async throws -> [Album] {

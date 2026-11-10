@@ -14,49 +14,106 @@ class YouTubeService {
     private let baseURL = "https://www.googleapis.com/youtube/v3"
 
     func search(query: String) async throws -> [Song] {
-        guard let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "\(baseURL)/search?part=snippet&q=\(encodedQuery)&type=video&videoCategoryId=10&maxResults=20&key=\(apiKey)") else {
-            throw NetworkError.invalidURL
+        let customKey = UserDefaults.standard.string(forKey: "youtubeApiKey") ?? ""
+        if !customKey.trimmingCharacters(in: .whitespaces).isEmpty,
+           let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+           let url = URL(string: "\(baseURL)/search?part=snippet&q=\(encodedQuery)&type=video&videoCategoryId=10&maxResults=20&key=\(customKey)") {
+            if let response = try? await NetworkService.shared.request(url: url, type: YouTubeSearchResponse.self),
+               !response.items.isEmpty {
+                return response.items.compactMap { item in
+                    guard let videoId = item.id.videoId else { return nil }
+                    return Song(
+                        id: "youtube_\(videoId)",
+                        title: item.snippet.title,
+                        artist: item.snippet.channelTitle,
+                        album: "YouTube",
+                        duration: 240,
+                        artworkURL: item.snippet.thumbnails.high?.url ?? item.snippet.thumbnails.medium?.url ?? item.snippet.thumbnails.defaultThumbnail?.url,
+                        streamURL: "https://www.youtube.com/watch?v=\(videoId)",
+                        previewURL: nil,
+                        source: .youtube
+                    )
+                }
+            }
         }
 
-        let response: YouTubeSearchResponse = try await NetworkService.shared.request(url: url, type: YouTubeSearchResponse.self)
-
-        return response.items.compactMap { item in
-            guard let videoId = item.id.videoId else { return nil }
-            return Song(
-                id: "youtube_\(videoId)",
-                title: item.snippet.title,
-                artist: item.snippet.channelTitle,
-                album: "YouTube",
-                duration: 240,
-                artworkURL: item.snippet.thumbnails.high?.url ?? item.snippet.thumbnails.medium?.url ?? item.snippet.thumbnails.defaultThumbnail?.url,
-                streamURL: "https://www.youtube.com/watch?v=\(videoId)",
-                previewURL: nil,
-                source: .youtube
-            )
+        // Fallback: Query Piped API for direct YouTube video streams
+        if let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+           let url = URL(string: "https://api.piped.private.coffee/search?q=\(encoded)&filter=videos") {
+            if let data = try? await NetworkService.shared.requestData(url: url) {
+                struct PipedItem: Decodable {
+                    let url: String?
+                    let title: String?
+                    let uploaderName: String?
+                    let thumbnail: String?
+                    let duration: Int?
+                }
+                struct PipedResponse: Decodable {
+                    let items: [PipedItem]
+                }
+                if let pipedResp = try? JSONDecoder().decode(PipedResponse.self, from: data), !pipedResp.items.isEmpty {
+                    return pipedResp.items.compactMap { item in
+                        guard let u = item.url, let vId = u.components(separatedBy: "v=").last, !vId.isEmpty else { return nil }
+                        return Song(
+                            id: "youtube_\(vId)",
+                            title: item.title ?? query,
+                            artist: item.uploaderName ?? "YouTube Artist",
+                            album: "YouTube",
+                            duration: TimeInterval(item.duration ?? 240),
+                            artworkURL: item.thumbnail,
+                            streamURL: "https://www.youtube.com/watch?v=\(vId)",
+                            previewURL: nil,
+                            source: .youtube
+                        )
+                    }
+                }
+            }
         }
+
+        // Secondary fallback: Return Deezer songs under YouTube source
+        if let deezer = try? await DeezerService.shared.search(query: query), !deezer.isEmpty {
+            return deezer.map { track in
+                var s = track
+                s.source = .youtube
+                return s
+            }
+        }
+
+        return []
     }
 
     func getTrending() async throws -> [Song] {
-        guard let url = URL(string: "\(baseURL)/videos?part=snippet,contentDetails&chart=mostPopular&videoCategoryId=10&maxResults=20&key=\(apiKey)") else {
-            throw NetworkError.invalidURL
+        let customKey = UserDefaults.standard.string(forKey: "youtubeApiKey") ?? ""
+        if !customKey.trimmingCharacters(in: .whitespaces).isEmpty,
+           let url = URL(string: "\(baseURL)/videos?part=snippet,contentDetails&chart=mostPopular&videoCategoryId=10&maxResults=20&key=\(customKey)") {
+            if let response = try? await NetworkService.shared.request(url: url, type: YouTubeTrendingResponse.self),
+               !response.items.isEmpty {
+                return response.items.map { item in
+                    Song(
+                        id: "youtube_\(item.id)",
+                        title: item.snippet.title,
+                        artist: item.snippet.channelTitle,
+                        album: "YouTube",
+                        duration: parseDuration(item.contentDetails?.duration ?? "PT4M"),
+                        artworkURL: item.snippet.thumbnails.high?.url ?? item.snippet.thumbnails.medium?.url,
+                        streamURL: "https://www.youtube.com/watch?v=\(item.id)",
+                        previewURL: nil,
+                        source: .youtube
+                    )
+                }
+            }
         }
 
-        let response: YouTubeTrendingResponse = try await NetworkService.shared.request(url: url, type: YouTubeTrendingResponse.self)
-
-        return response.items.map { item in
-            Song(
-                id: "youtube_\(item.id)",
-                title: item.snippet.title,
-                artist: item.snippet.channelTitle,
-                album: "YouTube",
-                duration: parseDuration(item.contentDetails?.duration ?? "PT4M"),
-                artworkURL: item.snippet.thumbnails.high?.url ?? item.snippet.thumbnails.medium?.url,
-                streamURL: "https://www.youtube.com/watch?v=\(item.id)",
-                previewURL: nil,
-                source: .youtube
-            )
+        // Fallback: Deezer chart tracks tagged as YouTube source
+        if let chart = try? await DeezerService.shared.getChart(), !chart.isEmpty {
+            return chart.map { track in
+                var s = track
+                s.source = .youtube
+                return s
+            }
         }
+
+        return []
     }
 
     private func parseDuration(_ iso: String) -> TimeInterval {

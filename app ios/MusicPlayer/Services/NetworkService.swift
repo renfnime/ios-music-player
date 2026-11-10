@@ -75,3 +75,44 @@ enum NetworkError: LocalizedError {
         }
     }
 }
+
+// MARK: - iTunes Search Service (Fallback Audio Stream Provider)
+class iTunesSearchService {
+    static let shared = iTunesSearchService()
+
+    func searchTrack(query: String) async throws -> Song? {
+        guard let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "https://itunes.apple.com/search?term=\(encoded)&media=music&limit=5") else {
+            return nil
+        }
+        let data = try await NetworkService.shared.requestData(url: url)
+        struct ITunesSearchResponse: Decodable {
+            let results: [ITunesSearchItem]
+        }
+        struct ITunesSearchItem: Decodable {
+            let trackId: Int?
+            let trackName: String?
+            let artistName: String?
+            let collectionName: String?
+            let previewUrl: String?
+            let artworkUrl100: String?
+        }
+        let response = try JSONDecoder().decode(ITunesSearchResponse.self, from: data)
+        guard let first = response.results.first(where: { $0.previewUrl != nil }),
+              let preview = first.previewUrl else {
+            return nil
+        }
+        return Song(
+            id: "itunes_\(first.trackId ?? 0)",
+            title: first.trackName ?? query,
+            artist: first.artistName ?? "Unknown Artist",
+            album: first.collectionName ?? "",
+            duration: 30,
+            artworkURL: first.artworkUrl100?.replacingOccurrences(of: "100x100bb", with: "500x500bb"),
+            streamURL: preview,
+            previewURL: preview,
+            source: .deezer
+        )
+    }
+}
+

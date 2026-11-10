@@ -13,6 +13,7 @@ class YouTubePlayerController: NSObject, ObservableObject, WKNavigationDelegate,
     @Published var isReady = false
 
     var onPlaybackFinished: (() -> Void)?
+    var onError: ((Int) -> Void)?
 
     let webView: WKWebView
 
@@ -78,20 +79,21 @@ class YouTubePlayerController: NSObject, ObservableObject, WKNavigationDelegate,
                         playerVars: {
                             'autoplay': 1,
                             'playsinline': 1,
-                            'controls': 0,
+                            'controls': 1,
                             'rel': 0,
-                            'enablejsapi': 1,
-                            'origin': 'https://www.youtube.com'
+                            'fs': 0,
+                            'enablejsapi': 1
                         },
                         events: {
                             'onReady': onPlayerReady,
-                            'onStateChange': onPlayerStateChange
+                            'onStateChange': onPlayerStateChange,
+                            'onError': onPlayerError
                         }
                     });
                 }
 
                 function onPlayerReady(event) {
-                    event.target.playVideo();
+                    try { event.target.playVideo(); } catch (e) {}
                     var dur = event.target.getDuration() || 0;
                     window.webkit.messageHandlers.youtubePlayback.postMessage({
                         type: 'ready',
@@ -104,6 +106,13 @@ class YouTubePlayerController: NSObject, ObservableObject, WKNavigationDelegate,
                     window.webkit.messageHandlers.youtubePlayback.postMessage({
                         type: 'state',
                         state: event.data
+                    });
+                }
+
+                function onPlayerError(event) {
+                    window.webkit.messageHandlers.youtubePlayback.postMessage({
+                        type: 'error',
+                        code: event.data
                     });
                 }
 
@@ -125,7 +134,7 @@ class YouTubePlayerController: NSObject, ObservableObject, WKNavigationDelegate,
         </body>
         </html>
         """
-        webView.loadHTMLString(embedHTML, baseURL: URL(string: "https://www.youtube.com"))
+        webView.loadHTMLString(embedHTML, baseURL: URL(string: "https://www.youtube-nocookie.com"))
     }
 
     func play() {
@@ -195,6 +204,10 @@ class YouTubePlayerController: NSObject, ObservableObject, WKNavigationDelegate,
                 }
                 if let dur = dict["duration"] as? Double, dur > 0 {
                     self.duration = dur
+                }
+            case "error":
+                if let code = dict["code"] as? Int {
+                    self.onError?(code)
                 }
             default:
                 break
