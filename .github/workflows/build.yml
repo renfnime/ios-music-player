@@ -48,10 +48,30 @@ jobs:
           if [ -d "app ios" ]; then
             cd "app ios"
           fi
+          APP_DIR="build/MusicPlayer.xcarchive/Products/Applications/MusicPlayer.app"
+          ICON_SRC="MusicPlayer/Assets.xcassets/AppIcon.appiconset"
+          
+          # Copy loose icon files into the .app bundle for SpringBoard and sideloaders
+          cp "$ICON_SRC/AppIcon-60x60@3x.png" "$APP_DIR/AppIcon60x60@3x.png"
+          cp "$ICON_SRC/AppIcon-60x60@2x.png" "$APP_DIR/AppIcon60x60@2x.png"
+          cp "$ICON_SRC/AppIcon-76x76@2x.png" "$APP_DIR/AppIcon76x76@2x.png"
+          cp "$ICON_SRC/AppIcon-76x76@2x.png" "$APP_DIR/AppIcon76x76@2x~ipad.png"
+          cp "$ICON_SRC/AppIcon-1024.png" "$APP_DIR/AppIcon-1024.png"
+          cp "$ICON_SRC/AppIcon-1024.png" "$APP_DIR/AppIcon.png"
+          cp "$ICON_SRC/AppIcon-60x60@2x.png" "$APP_DIR/AppIcon@2x.png"
+          cp "$ICON_SRC/AppIcon-60x60@3x.png" "$APP_DIR/AppIcon@3x.png"
+          cp "$ICON_SRC/AppIcon-1024.png" "$APP_DIR/iTunesArtwork"
+          cp "$ICON_SRC/AppIcon-1024.png" "$APP_DIR/iTunesArtwork@2x"
+          
           mkdir -p build/Payload
-          cp -R build/MusicPlayer.xcarchive/Products/Applications/MusicPlayer.app build/Payload/
+          cp -R "$APP_DIR" build/Payload/
+          
+          # Place iTunesArtwork at root of IPA archive for sideloaders (AltStore / TrollStore)
+          cp "$ICON_SRC/AppIcon-1024.png" build/iTunesArtwork
+          cp "$ICON_SRC/AppIcon-1024.png" build/iTunesArtwork@2x
+          
           cd build
-          zip -r -y MusicPlayer.ipa Payload
+          zip -r -y MusicPlayer.ipa Payload iTunesArtwork iTunesArtwork@2x
 
       # Langkah 4: Simpan file .IPA untuk diunduh
       - name: Upload IPA Artifact

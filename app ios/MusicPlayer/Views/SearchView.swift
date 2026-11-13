@@ -136,7 +136,10 @@ struct SearchView: View {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                         ForEach(MusicSource.allCases) { source in
                             BrowseSourceCard(source: source) {
-                                searchVM.selectedSources = [source]
+                                withAnimation(.easeInOut(duration: 0.25)) {
+                                    searchVM.selectedSources = [source]
+                                    showSourceFilter = true
+                                }
                             }
                         }
                     }

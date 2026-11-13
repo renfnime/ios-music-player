@@ -19,7 +19,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
-	<string>2</string>
+	<string>3</string>
 	<key>CFBundleIconName</key>
 	<string>AppIcon</string>
 	<key>CFBundleIcons</key>
@@ -28,6 +28,7 @@
 		<dict>
 			<key>CFBundleIconFiles</key>
 			<array>
+				<string>AppIcon60x60</string>
 				<string>AppIcon</string>
 			</array>
 			<key>CFBundleIconName</key>
@@ -40,6 +41,8 @@
 		<dict>
 			<key>CFBundleIconFiles</key>
 			<array>
+				<string>AppIcon60x60</string>
+				<string>AppIcon76x76</string>
 				<string>AppIcon</string>
 			</array>
 			<key>CFBundleIconName</key>
