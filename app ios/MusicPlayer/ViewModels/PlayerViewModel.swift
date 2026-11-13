@@ -19,7 +19,6 @@ class PlayerViewModel: ObservableObject {
     @Published var lyrics: String?
     @Published var isLoadingLyrics = false
     @Published var showLyrics = false
-    @Published var youtubeVideoId: String?
 
     // Equalizer
     @Published var currentEQPreset: EqualizerPreset = .flat
@@ -107,8 +106,6 @@ class PlayerViewModel: ObservableObject {
 
         currentSong = song
         playHistory.append(song)
-
-        self.youtubeVideoId = song.youtubeVideoId
 
         if let localPath = song.localFilePath, song.isDownloaded {
             audioPlayer.playLocalFile(path: localPath)

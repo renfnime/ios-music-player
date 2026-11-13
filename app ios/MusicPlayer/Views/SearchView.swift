@@ -137,7 +137,6 @@ struct SearchView: View {
                         ForEach(MusicSource.allCases) { source in
                             BrowseSourceCard(source: source) {
                                 searchVM.selectedSources = [source]
-                                searchVM.searchText = "top"
                             }
                         }
                     }

@@ -48,7 +48,6 @@ SOURCE_FILES = [
     ("Views/QueueView.swift", "Views"),
     ("Views/SearchView.swift", "Views"),
     ("Views/SettingsView.swift", "Views"),
-    ("Views/YouTubePlayerView.swift", "Views"),
 ]
 
 RESOURCE_FILES = [
@@ -418,7 +417,7 @@ lines.append("\t\t\tbuildSettings = {")
 lines.append("\t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;")
 lines.append("\t\t\t\tASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;")
 lines.append("\t\t\t\tCODE_SIGN_STYLE = Automatic;")
-lines.append("\t\t\t\tCURRENT_PROJECT_VERSION = 1;")
+lines.append("\t\t\t\tCURRENT_PROJECT_VERSION = 2;")
 lines.append("\t\t\t\tENABLE_PREVIEWS = YES;")
 lines.append("\t\t\t\tGENERATE_INFOPLIST_FILE = NO;")
 lines.append("\t\t\t\tINFOPLIST_FILE = MusicPlayer/Info.plist;")
@@ -447,7 +446,7 @@ lines.append("\t\t\tbuildSettings = {")
 lines.append("\t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;")
 lines.append("\t\t\t\tASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;")
 lines.append("\t\t\t\tCODE_SIGN_STYLE = Automatic;")
-lines.append("\t\t\t\tCURRENT_PROJECT_VERSION = 1;")
+lines.append("\t\t\t\tCURRENT_PROJECT_VERSION = 2;")
 lines.append("\t\t\t\tENABLE_PREVIEWS = YES;")
 lines.append("\t\t\t\tGENERATE_INFOPLIST_FILE = NO;")
 lines.append("\t\t\t\tINFOPLIST_FILE = MusicPlayer/Info.plist;")
